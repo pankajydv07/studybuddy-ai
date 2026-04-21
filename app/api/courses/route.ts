@@ -10,26 +10,35 @@ export async function GET() {
   }
 
   try {
+    // Ensure user row exists before any FK-dependent inserts
+    await supabaseAdmin.from('users').upsert(
+      {
+        id: session.user.id,
+        email: session.user.email!,
+        name: session.user.name ?? '',
+        image: session.user.image ?? null,
+      },
+      { onConflict: 'id' }
+    )
+
     // Fetch fresh courses from Google Classroom
     const courses = await getClassroomCourses(session.accessToken)
 
-    // Cache in Supabase
-    for (const course of courses) {
-      await supabaseAdmin
-        .from('courses')
-        .upsert(
-          {
-            id: course.id,
-            user_id: session.user.id,
-            name: course.name,
-            section: course.section ?? null,
-            room: course.room ?? null,
-            description: course.description ?? null,
-            course_state: course.courseState ?? null,
-            cached_at: new Date().toISOString(),
-          },
-          { onConflict: 'id' }
-        )
+    // Cache in Supabase (batch upsert)
+    if (courses.length > 0) {
+      await supabaseAdmin.from('courses').upsert(
+        courses.map((course) => ({
+          id: course.id,
+          user_id: session.user!.id,
+          name: course.name,
+          section: course.section ?? null,
+          room: course.room ?? null,
+          description: course.description ?? null,
+          course_state: course.courseState ?? null,
+          cached_at: new Date().toISOString(),
+        })),
+        { onConflict: 'id' }
+      )
     }
 
     return NextResponse.json({ courses })

@@ -147,9 +147,18 @@ export async function getDriveFileMimeType(
 // ─── Helpers ──────────────────────────────────────────────────
 
 export function inferFileType(fileName: string): Material['fileType'] {
-  const ext = fileName.split('.').pop()?.toLowerCase()
+  const lower = fileName.toLowerCase()
+  const ext = lower.split('.').pop()
+
   if (ext === 'pdf') return 'pdf'
   if (ext === 'docx' || ext === 'doc') return 'docx'
   if (ext === 'pptx' || ext === 'ppt') return 'pptx'
-  return 'unknown'
+
+  // Google Workspace files have no extension — treat by name patterns
+  // They'll be exported as PDF during ingest
+  if (lower.includes('slide') || lower.includes('presentation')) return 'pptx'
+  if (lower.includes('sheet') || lower.includes('spreadsheet')) return 'pdf'
+
+  // Anything else from Google Drive — treat as docx (exported as PDF in ingest)
+  return 'docx'
 }
