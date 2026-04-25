@@ -6,9 +6,7 @@ import mammoth from 'mammoth'
  */
 async function extractPdfText(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: buffer })
-  await parser.load()
   const result = await parser.getText()
-  await parser.destroy()
   return result.text.trim()
 }
 

@@ -122,10 +122,10 @@ export async function POST(req: Request) {
     return new Response(readableStream, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'X-Sources': JSON.stringify(chunks.map((c) => ({
+        'X-Sources': encodeURIComponent(JSON.stringify(chunks.map((c) => ({
           fileName: c.fileName,
           chunkIndex: c.chunkIndex,
-        }))),
+        })))),
       },
     })
   } catch (err) {

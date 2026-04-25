@@ -103,7 +103,7 @@ export default function StudyPage() {
       })
 
       const sourcesHeader = res.headers.get('X-Sources')
-      const sources = sourcesHeader ? JSON.parse(sourcesHeader) : []
+      const sources = sourcesHeader ? JSON.parse(decodeURIComponent(sourcesHeader)) : []
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
