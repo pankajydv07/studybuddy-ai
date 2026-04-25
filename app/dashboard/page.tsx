@@ -32,10 +32,18 @@ export default function DashboardPage() {
           fetch('/api/courses'),
           fetch('/api/session'),
         ])
-        const { courses: c } = await coursesRes.json()
-        const { sessions: s } = await sessionsRes.json()
-        setCourses(c ?? [])
-        setRecentSessions(s ?? [])
+
+        const coursesData = await coursesRes.json().catch(() => ({}))
+        const sessionsData = await sessionsRes.json().catch(() => ({}))
+
+        // Handle expired Google tokens — force re-login
+        if (coursesRes.status === 401 && coursesData.error === 'TokenExpired') {
+          signOut({ callbackUrl: '/login' })
+          return
+        }
+
+        setCourses(coursesData.courses ?? [])
+        setRecentSessions(sessionsData.sessions ?? [])
       } catch {
         setError('Failed to load your courses. Please try again.')
       } finally {

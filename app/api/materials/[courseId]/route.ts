@@ -15,6 +15,18 @@ export async function GET(
   const { courseId } = await params
 
   try {
+    // Ensure user row exists before any FK-dependent inserts
+    const { error: userError } = await supabaseAdmin.from('users').upsert(
+      {
+        id: session.user.id,
+        email: session.user.email!,
+        name: session.user.name ?? '',
+        image: session.user.image ?? null,
+      },
+      { onConflict: 'id' }
+    )
+    if (userError) console.error('User upsert error:', userError)
+
     // Check if we have cached materials in Supabase
     const { data: cached } = await supabaseAdmin
       .from('materials')
@@ -32,7 +44,7 @@ export async function GET(
     const matchedCourse = courses.find((c) => c.id === courseId)
 
     if (matchedCourse) {
-      await supabaseAdmin.from('courses').upsert(
+      const { error: courseError } = await supabaseAdmin.from('courses').upsert(
         {
           id: matchedCourse.id,
           user_id: session.user.id,
@@ -45,9 +57,10 @@ export async function GET(
         },
         { onConflict: 'id' }
       )
+      if (courseError) console.error('Course upsert error:', courseError)
     } else {
       // Course not found in Classroom — upsert a minimal record so FK is satisfied
-      await supabaseAdmin.from('courses').upsert(
+      const { error: courseError } = await supabaseAdmin.from('courses').upsert(
         {
           id: courseId,
           user_id: session.user.id,
@@ -56,6 +69,7 @@ export async function GET(
         },
         { onConflict: 'id' }
       )
+      if (courseError) console.error('Course minimal upsert error:', courseError)
     }
 
     // --- Fetch fresh materials from Google Classroom ---

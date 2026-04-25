@@ -9,6 +9,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // If the token refresh failed, tell the client to re-authenticate
+  if (session.error === 'RefreshAccessTokenError') {
+    return NextResponse.json(
+      { error: 'TokenExpired', message: 'Your Google session has expired. Please sign in again.' },
+      { status: 401 }
+    )
+  }
+
   try {
     // Ensure user row exists before any FK-dependent inserts
     await supabaseAdmin.from('users').upsert(
@@ -42,7 +50,18 @@ export async function GET() {
     }
 
     return NextResponse.json({ courses })
-  } catch (err) {
+  } catch (err: unknown) {
+    // Detect Google 401 specifically — means the token is truly dead
+    const isGoogleAuthError =
+      err instanceof Error && (err.message?.includes('invalid authentication credentials') || (err as { code?: number }).code === 401)
+
+    if (isGoogleAuthError) {
+      return NextResponse.json(
+        { error: 'TokenExpired', message: 'Your Google session has expired. Please sign in again.' },
+        { status: 401 }
+      )
+    }
+
     console.error('Courses API error:', err)
     return NextResponse.json({ error: 'Failed to fetch courses' }, { status: 500 })
   }

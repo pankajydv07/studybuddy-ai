@@ -1,8 +1,16 @@
-// pdf-parse and mammoth are server-external packages (CJS)
-// They are excluded from bundling via serverExternalPackages in next.config.ts
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
+import { PDFParse } from 'pdf-parse'
 import mammoth from 'mammoth'
+
+/**
+ * Extract text from a PDF buffer using pdf-parse v2 API.
+ */
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  const parser = new PDFParse({ data: buffer })
+  await parser.load()
+  const result = await parser.getText()
+  await parser.destroy()
+  return result.text.trim()
+}
 
 /**
  * Parse a file buffer to text. fileType is 'pdf' | 'docx' | 'pptx' | 'unknown'.
@@ -14,9 +22,9 @@ export async function parseFileBuffer(
   // PDF — direct files or Google Docs/Slides exported as PDF
   if (fileType === 'pdf' || fileType === 'unknown') {
     try {
-      const result = await pdfParse(buffer)
-      return result.text.trim()
-    } catch {
+      return await extractPdfText(buffer)
+    } catch (err) {
+      console.error('PDF Parse Error:', err)
       return '[PDF parsing failed]'
     }
   }
@@ -30,8 +38,7 @@ export async function parseFileBuffer(
   // PPTX — Drive API already exports to PDF before calling this
   if (fileType === 'pptx') {
     try {
-      const result = await pdfParse(buffer)
-      return result.text.trim()
+      return await extractPdfText(buffer)
     } catch {
       return '[PPTX parsing failed — file may be encrypted or corrupt]'
     }
@@ -39,8 +46,7 @@ export async function parseFileBuffer(
 
   // Fallback: try PDF parse
   try {
-    const result = await pdfParse(buffer)
-    return result.text.trim()
+    return await extractPdfText(buffer)
   } catch {
     return '[Unsupported file format]'
   }
