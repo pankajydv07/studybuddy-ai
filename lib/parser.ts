@@ -1,13 +1,12 @@
-import { PDFParse } from 'pdf-parse'
+import { extractText } from 'unpdf'
 import mammoth from 'mammoth'
 
 /**
- * Extract text from a PDF buffer using pdf-parse v2 API.
+ * Extract text from a PDF buffer using unpdf (serverless-compatible).
  */
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer })
-  const result = await parser.getText()
-  return result.text.trim()
+  const { text } = await extractText(new Uint8Array(buffer))
+  return text.join('\n').trim()
 }
 
 /**
