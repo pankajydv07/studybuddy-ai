@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft, Brain, Send, Loader2, Sparkles,
   BookOpen, Zap, RotateCcw, Copy, Check, FileText
@@ -250,10 +252,11 @@ export default function StudyPage() {
                       <span className="w-2 h-2 rounded-full bg-muted-foreground typing-dot" />
                     </div>
                   ) : msg.role === 'assistant' ? (
-                    <div
-                      className="prose-chat"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                    />
+                    <div className="prose-chat">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   )}
@@ -350,22 +353,7 @@ export default function StudyPage() {
   )
 }
 
-// Minimal markdown renderer (bold, italic, headers, bullets, code)
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/^(?!<[h|u|b|o|l|p])(.+)$/gm, '<p>$1</p>')
-}
+
 
 function truncate(str: string, n: number) {
   return str.length > n ? str.slice(0, n) + '…' : str
