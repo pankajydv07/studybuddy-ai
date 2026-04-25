@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Loader2, Zap, CheckCircle, XCircle, ChevronRight } from 'lucide-react'
+import { X, Loader2, Zap, ChevronRight } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import type { QuizQuestion } from '@/types'
 
@@ -37,7 +39,7 @@ export default function QuizModal({ sessionId, materialIds, onClose }: Props) {
       setUserAnswers(new Array(qs.length).fill(-1))
       setPhase('quiz')
     } catch {
-      toast.error('Failed to generate quiz')
+      toast.error('Failed to generate quiz. Make sure materials are ingested.')
       setPhase('config')
     }
   }
@@ -194,8 +196,12 @@ export default function QuizModal({ sessionId, materialIds, onClose }: Props) {
               {/* Explanation */}
               {revealed && (
                 <div className="bg-muted rounded-xl p-3 text-sm text-muted-foreground animate-fade-in-up">
-                  <span className="font-medium text-foreground">Explanation: </span>
-                  {questions[current].explanation}
+                  <span className="font-medium text-foreground block mb-1">Explanation:</span>
+                  <div className="prose-chat">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {questions[current].explanation}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               )}
 

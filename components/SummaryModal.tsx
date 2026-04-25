@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Loader2, FileText, Copy, Check } from 'lucide-react'
+import { X, Loader2, FileText, Copy, Check, RotateCcw } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 
 interface Props {
@@ -14,6 +16,7 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [focus, setFocus] = useState('')
+  const [sourcesUsed, setSourcesUsed] = useState(0)
 
   useEffect(() => {
     generateSummary()
@@ -28,10 +31,13 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ materialIds, focus: f }),
       })
-      const { summary: s } = await res.json()
-      setSummary(s ?? '')
+      if (!res.ok) throw new Error('Failed')
+      const { summary: s, sourcesUsed: n } = await res.json()
+      if (!s) throw new Error('Empty summary')
+      setSummary(s)
+      setSourcesUsed(n ?? 0)
     } catch {
-      toast.error('Failed to generate summary')
+      toast.error('Failed to generate summary. Make sure materials are ingested.')
     } finally {
       setLoading(false)
     }
@@ -43,21 +49,6 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function renderMarkdown(text: string): string {
-    return text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-      .replace(/\n\n/g, '</p><p>')
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-card border border-border/60 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl shadow-primary/10">
@@ -66,12 +57,18 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
           <div className="flex items-center gap-2">
             <FileText className="w-4 h-4 text-primary" />
             <h2 className="font-semibold text-foreground">Study Summary</h2>
+            {!loading && sourcesUsed > 0 && (
+              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                {sourcesUsed} chunk{sourcesUsed !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {!loading && summary && (
               <button
                 onClick={copySummary}
                 className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Copy summary"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -92,15 +89,19 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
               type="text"
               value={focus}
               onChange={(e) => setFocus(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && generateSummary(focus || undefined)}
               placeholder="Focus on a specific topic (optional)..."
               className="flex-1 text-sm bg-muted rounded-xl px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
             />
             <button
               onClick={() => generateSummary(focus || undefined)}
               disabled={loading}
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-xl disabled:opacity-50 hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-xl disabled:opacity-50 hover:bg-primary/90 transition-colors"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Regenerate'}
+              {loading
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <><RotateCcw className="w-3.5 h-3.5" /> Regenerate</>
+              }
             </button>
           </div>
         </div>
@@ -112,11 +113,16 @@ export default function SummaryModal({ materialIds, onClose }: Props) {
               <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
               <p className="text-muted-foreground text-sm">Generating comprehensive summary...</p>
             </div>
+          ) : summary ? (
+            <div className="prose-chat animate-fade-in-up">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {summary}
+              </ReactMarkdown>
+            </div>
           ) : (
-            <div
-              className="prose-chat text-sm leading-relaxed animate-fade-in-up"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(summary) }}
-            />
+            <div className="py-16 text-center text-muted-foreground text-sm">
+              No summary generated. Make sure materials have been ingested.
+            </div>
           )}
         </div>
       </div>
