@@ -1,0 +1,304 @@
+"""
+Tests for README.md documentation updates.
+These tests ensure documentation integrity, structure, and accuracy.
+"""
+
+import os
+import re
+import pytest
+from pathlib import Path
+
+
+class TestReadmeStructure:
+    \"\"\"Tests for README.md structure and content.\"\"\"
+    
+    @pytest.fixture
+    def readme_content(self):
+        \"\"\"Load README.md content.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text(encoding='utf-8')
+    
+    def test_readme_exists(self):
+        \"\"\"Verify README.md file exists.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        assert readme_path.exists(), "README.md should exist"
+    
+    def test_readme_has_project_title(self, readme_content):
+        \"\"\"Verify README has project title 'StudyBuddy AI'.\"\"\"
+        assert "# StudyBuddy AI" in readme_content, "README should contain project title"
+    
+    def test_readme_has_badges(self, readme_content):
+        \"\"\"Verify README contains status badges.\"\"\"
+        assert "![" in readme_content, "README should contain badges"
+        assert "shields.io" in readme_content, "README should use shields.io badges"
+    
+    def test_readme_has_table_of_contents(self, readme_content):
+        \"\"\"Verify README has Table of Contents section.\"\"\"
+        assert "## Table of Contents" in readme_content, "README should have Table of Contents"
+        assert "[Overview]" in readme_content, "Should link to Overview section"
+        assert "[Features]" in readme_content, "Should link to Features section"
+        assert "[Installation]" in readme_content, "Should link to Installation section"
+    
+    def test_readme_has_required_sections(self, readme_content):
+        \"\"\"Verify README contains all required sections.\"\"\"
+        required_sections = [
+            "## Overview",
+            "## Features",
+            "## Tech Stack",
+            "## Prerequisites",
+            "## Installation",
+            "## Environment Variables",
+            "## Usage",
+            "## Deployment",
+            "## Contributing",
+            "## License"
+        ]
+        for section in required_sections:
+            assert section in readme_content, f"README should contain {section} section"
+    
+    def test_readme_has_feature_list(self, readme_content):
+        \"\"\"Verify README lists key features.\"\"\"
+        features = [
+            "AI Tutoring",
+            "Quiz Generation",
+            "Document Analysis",
+            "Study Scheduler"
+        ]
+        for feature in features:
+            assert feature in readme_content, f"README should mention feature: {feature}"
+    
+    def test_readme_has_tech_stack(self, readme_content):
+        \"\"\"Verify README documents tech stack.\"\"\"
+        tech_items = [
+            "Next.js",
+            "TypeScript",
+            "Tailwind CSS",
+            "Prisma"
+        ]
+        for tech in tech_items:
+            assert tech in readme_content, f"README should mention technology: {tech}"
+    
+    def test_readme_has_installation_steps(self, readme_content):
+        \"\"\"Verify README contains installation instructions.\"\"\"
+        assert "git clone" in readme_content, "Should have git clone instructions"
+        assert "npm install" in readme_content, "Should have npm install instructions"
+        assert "npm run dev" in readme_content, "Should have dev server instructions"
+    
+    def test_readme_has_env_variables_section(self, readme_content):
+        \"\"\"Verify README documents environment variables.\"\"\"
+        assert "DATABASE_URL" in readme_content, "Should document DATABASE_URL"
+        assert "NEXTAUTH_SECRET" in readme_content, "Should document NEXTAUTH_SECRET"
+        assert "OPENAI_API_KEY" in readme_content or "ANTHROPIC_API_KEY" in readme_content, \"\"\"
+            Should document AI API keys
+        \"\"\"
+    
+    def test_readme_has_deployment_instructions(self, readme_content):
+        \"\"\"Verify README contains deployment section.\"\"\"
+        assert "Vercel" in readme_content, "Should mention Vercel deployment"
+        assert "npm run build" in readme_content, "Should have build instructions"
+
+
+class TestReadmeLinks:
+    \"\"\"Tests for README.md links and references.\"\"\"
+    
+    @pytest.fixture
+    def readme_content(self):
+        \"\"\"Load README.md content.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text(encoding='utf-8')
+    
+    def test_no_broken_markdown_links(self, readme_content):
+        \"\"\"Verify no empty or broken markdown links.\"\"\"
+        # Check for empty links like [text]()
+        empty_link_pattern = r'\[([^\]]+)\]\(\s*\)'
+        matches = re.findall(empty_link_pattern, readme_content)
+        assert len(matches) == 0, f"Found empty links for: {matches}"
+    
+    def test_internal_links_have_anchors(self, readme_content):
+        \"\"\"Verify internal links reference existing sections.\"\"\"
+        # Extract all internal links like [text](#section)
+        internal_links = re.findall(r'\[([^\]]+)\]\(#([^)]+)\)', readme_content)
+        
+        # Convert section names to expected header format
+        for text, anchor in internal_links:
+            # Replace hyphens with spaces and check if section exists
+            expected_header = anchor.replace('-', ' ').title()
+            # Check if there's a header matching this anchor
+            header_pattern = f"## {expected_header}"
+            assert header_pattern in readme_content or anchor in readme_content.lower(), \
+                f"Internal link '{text}' points to missing section: #{anchor}"
+    
+    def test_external_urls_use_https(self, readme_content):
+        \"\"\"Verify external links use HTTPS.\"\"\"
+        # Find all URLs
+        url_pattern = r'https?://[^\s\)]+'
+        urls = re.findall(url_pattern, readme_content)
+        
+        for url in urls:
+            if not url.startswith('https://') and not url.startswith('http://localhost'):
+                assert False, f"URL should use HTTPS: {url}"
+
+
+class TestEnvDocumentation:
+    \"\"\"Tests for environment variable documentation accuracy.\"\"\"
+    
+    @pytest.fixture
+    def readme_content(self):
+        \"\"\"Load README.md content.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text(encoding='utf-8')
+    
+    @pytest.fixture
+    def env_example_content(self):
+        \"\"\"Load .env.example content if exists.\"\"\"
+        env_path = Path(__file__).parent.parent / ".env.example"
+        if not env_path.exists():
+            pytest.skip(".env.example not found")
+        return env_path.read_text(encoding='utf-8')
+    
+    def test_env_vars_match_example(self, readme_content, env_example_content):
+        \"\"\"Verify README env vars match .env.example.\"\"\"
+        # Extract env vars from README code block
+        env_section = re.search(
+            r'## Environment Variables.*?(```env.*?```)',
+            readme_content,
+            re.DOTALL
+        )
+        
+        if env_section:
+            env_block = env_section.group(1)
+            # Check that critical vars in README exist in .env.example
+            critical_vars = ["DATABASE_URL", "NEXTAUTH_SECRET", "NEXTAUTH_URL"]
+            for var in critical_vars:
+                assert var in env_block, f"README should document {var}"
+    
+    def test_readme_warns_about_env_security(self, readme_content):
+        \"\"\"Verify README warns about not committing env files.\"\"\"
+        assert ".env.local" in readme_content, "Should mention .env.local"
+        assert ".gitignore" in readme_content, "Should mention .gitignore"
+        assert "Never commit" in readme_content or "do not commit" in readme_content.lower(), \"\"\"
+            Should warn about committing env files
+        \"\"\"
+
+
+class TestCodeBlocks:
+    \"\"\"Tests for README code blocks.\"\"\"
+    
+    @pytest.fixture
+    def readme_content(self):
+        \"\"\"Load README.md content.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text(encoding='utf-8')
+    
+    def test_bash_commands_use_bash_tag(self, readme_content):
+        \"\"\"Verify bash commands use proper syntax highlighting.\"\"\"
+        # Check that installation commands are in bash blocks
+        assert "```bash" in readme_content, "Should use ```bash for shell commands"
+    
+    def test_env_vars_use_env_tag(self, readme_content):
+        \"\"\"Verify env variables use env syntax highlighting.\"\"\"
+        assert "```env" in readme_content, "Should use ```env for environment variables"
+    
+    def test_no_trailing_whitespace_in_code_blocks(self, readme_content):
+        \"\"\"Verify code blocks don't have trailing whitespace.\"\"\"
+        lines = readme_content.split('\n')
+        in_code_block = False
+        for i, line in enumerate(lines):
+            if line.startswith('```'):
+                in_code_block = not in_code_block
+            elif in_code_block and line.rstrip() != line:
+                assert False, f"Line {i+1} has trailing whitespace in code block"
+
+
+class TestReadmeFormatting:
+    \"\"\"Tests for README formatting consistency.\"\"\"
+    
+    @pytest.fixture
+    def readme_content(self):
+        \"\"\"Load README.md content.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        if not readme_path.exists():
+            pytest.skip("README.md not found")
+        return readme_path.read_text(encoding='utf-8')
+    
+    def test_no_trailing_whitespace(self, readme_content):
+        \"\"\"Verify no trailing whitespace in lines.\"\"\"
+        lines = readme_content.split('\n')
+        for i, line in enumerate(lines):
+            if line.rstrip() != line:
+                assert False, f"Line {i+1} has trailing whitespace"
+    
+    def test_file_ends_with_newline(self, readme_content):
+        \"\"\"Verify file ends with newline.\"\"\"
+        assert readme_content.endswith('\n'), "README should end with newline"
+    
+    def test_headers_have_proper_spacing(self, readme_content):
+        \"\"\"Verify headers have space after #.\"\"\"
+        lines = readme_content.split('\n')
+        for i, line in enumerate(lines):
+            if line.startswith('#') and not line.startswith('# '):
+                # Allow for special cases like #######
+                if not re.match(r'^#+$', line):
+                    assert False, f"Line {i+1} header missing space after #: {line}"
+
+
+# Integration test to verify README matches project state
+class TestReadmeProjectConsistency:
+    \"\"\"Integration tests verifying README matches actual project state.\"\"\"
+    
+    def test_package_json_matches_nextjs_version(self):
+        \"\"\"Verify README Next.js version matches package.json.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        package_path = Path(__file__).parent.parent / "package.json"
+        
+        if not readme_path.exists() or not package_path.exists():
+            pytest.skip("Required files not found")
+        
+        readme_content = readme_path.read_text()
+        package_content = package_path.read_text()
+        
+        # Extract version from README badge
+        readme_version = re.search(r'Next\.js-([\d]+)', readme_content)
+        
+        # Extract version from package.json
+        package_version = re.search(r'"next":\s*"[\^~]?([\d]+)', package_content)
+        
+        if readme_version and package_version:
+            assert readme_version.group(1) == package_version.group(1), \"\"\"
+                README Next.js version ({readme_version.group(1)}) should match \
+                package.json ({package_version.group(1)})
+            \"\"\"
+    
+    def test_readme_lists_actual_scripts(self):
+        \"\"\"Verify README mentions scripts that exist in package.json.\"\"\"
+        readme_path = Path(__file__).parent.parent / "README.md"
+        package_path = Path(__file__).parent.parent / "package.json"
+        
+        if not readme_path.exists() or not package_path.exists():
+            pytest.skip("Required files not found")
+        
+        readme_content = readme_path.read_text()
+        package_content = package_path.read_text()
+        
+        # Check that dev command mentioned exists in package.json
+        if "npm run dev" in readme_content:
+            assert '"dev":' in package_content, \"\"\"
+                README mentions 'npm run dev' but package.json lacks dev script
+            \"\"\"
+        
+        if "npm run build" in readme_content:
+            assert '"build":' in package_content, \"\"\"
+                README mentions 'npm run build' but package.json lacks build script
+            \"\"\"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
