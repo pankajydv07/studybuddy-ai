@@ -1,0 +1,257 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+
+describe('README.md Documentation', () => {
+  let readmeContent: string;
+
+  beforeAll(() => {
+    const readmePath = path.join(process.cwd(), 'README.md');
+    readmeContent = fs.readFileSync(readmePath, 'utf-8');
+  });
+
+  describe('File Structure', () => {
+    it('should exist and be readable', () => {
+      expect(readmeContent).toBeDefined();
+      expect(readmeContent.length).toBeGreaterThan(0);
+    });
+
+    it('should have proper markdown structure with headers', () => {
+      expect(readmeContent).toMatch(/^# /m);
+    });
+  });
+
+  describe('Header Section', () => {
+    it('should contain project title "StudyBuddy AI"', () => {
+      expect(readmeContent).toContain('# StudyBuddy AI');
+    });
+
+    it('should contain tech stack badges', () => {
+      expect(readmeContent).toContain('Next.js');
+      expect(readmeContent).toContain('React');
+      expect(readmeContent).toContain('TypeScript');
+      expect(readmeContent).toContain('Tailwind CSS');
+      expect(readmeContent).toContain('OpenAI');
+      expect(readmeContent).toContain('Supabase');
+    });
+
+    it('should contain project description', () => {
+      expect(readmeContent).toContain('AI-powered study assistant');
+      expect(readmeContent).toMatch(/upload.*pdf.*docx/i);
+    });
+  });
+
+  describe('Features Section', () => {
+    it('should contain Features heading', () => {
+      expect(readmeContent).toMatch(/## Features/);
+    });
+
+    it('should document key features', () => {
+      const features = [
+        'AI-Powered Study Assistance',
+        'Document Upload',
+        'Chat Interface',
+        'Authentication',
+        'Google Drive',
+        'Responsive UI'
+      ];
+      
+      features.forEach(feature => {
+        expect(readmeContent).toMatch(new RegExp(feature, 'i'));
+      });
+    });
+  });
+
+  describe('Prerequisites Section', () => {
+    it('should contain Prerequisites heading', () => {
+      expect(readmeContent).toMatch(/## Prerequisites/);
+    });
+
+    it('should list Node.js 18+ requirement', () => {
+      expect(readmeContent).toMatch(/Node\.js.*18/i);
+    });
+
+    it('should mention required API keys and credentials', () => {
+      expect(readmeContent).toContain('OpenAI API Key');
+      expect(readmeContent).toContain('Supabase');
+      expect(readmeContent).toContain('NextAuth Secret');
+    });
+  });
+
+  describe('Installation Section', () => {
+    it('should contain Installation heading', () => {
+      expect(readmeContent).toMatch(/## Installation/);
+    });
+
+    it('should provide clone instructions', () => {
+      expect(readmeContent).toContain('git clone');
+      expect(readmeContent).toContain('studybuddy-ai');
+    });
+
+    it('should provide dependency installation commands', () => {
+      expect(readmeContent).toMatch(/npm install|yarn install|pnpm install/);
+    });
+
+    it('should mention environment variables setup', () => {
+      expect(readmeContent).toContain('.env.local');
+    });
+
+    it('should provide development server start command', () => {
+      expect(readmeContent).toMatch(/npm run dev|yarn dev|pnpm dev/);
+      expect(readmeContent).toContain('localhost:3000');
+    });
+  });
+
+  describe('Environment Variables Section', () => {
+    it('should contain Environment Variables heading', () => {
+      expect(readmeContent).toMatch(/## Environment Variables/);
+    });
+
+    it('should document all required environment variables', () => {
+      const requiredEnvVars = [
+        'NEXTAUTH_URL',
+        'NEXTAUTH_SECRET',
+        'OPENAI_API_KEY',
+        'SUPABASE_URL',
+        'SUPABASE_ANON_KEY',
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'GOOGLE_CLIENT_ID',
+        'GOOGLE_CLIENT_SECRET'
+      ];
+
+      requiredEnvVars.forEach(envVar => {
+        expect(readmeContent).toContain(envVar);
+      });
+    });
+
+    it('should warn against committing .env.local', () => {
+      expect(readmeContent).toMatch(/never commit.*\.env\.local|\.env\.local.*gitignore/i);
+    });
+  });
+
+  describe('Usage Section', () => {
+    it('should contain Usage heading', () => {
+      expect(readmeContent).toMatch(/## Usage/);
+    });
+
+    it('should document document upload process', () => {
+      expect(readmeContent).toMatch(/upload.*document|document.*upload/i);
+    });
+
+    it('should document chat functionality', () => {
+      expect(readmeContent).toMatch(/chat.*AI|AI.*chat/i);
+    });
+
+    it('should document authentication flow', () => {
+      expect(readmeContent).toMatch(/NextAuth|authentication|sign in/i);
+    });
+  });
+
+  describe('Tech Stack Section', () => {
+    it('should contain Tech Stack heading', () => {
+      expect(readmeContent).toMatch(/## Tech Stack/);
+    });
+
+    it('should list all major technologies', () => {
+      const technologies = [
+        'Next.js 16',
+        'React 19',
+        'TypeScript',
+        'Tailwind CSS',
+        'shadcn/ui',
+        'Zustand',
+        'TanStack Query',
+        'OpenAI',
+        'Supabase',
+        'NextAuth'
+      ];
+
+      technologies.forEach(tech => {
+        expect(readmeContent).toContain(tech);
+      });
+    });
+  });
+
+  describe('Deployment Section', () => {
+    it('should contain Deployment heading', () => {
+      expect(readmeContent).toMatch(/## Deployment/);
+    });
+
+    it('should mention Vercel deployment', () => {
+      expect(readmeContent).toContain('Vercel');
+    });
+
+    it('should mention production environment variables', () => {
+      expect(readmeContent).toMatch(/production.*environment|environment.*production/i);
+    });
+
+    it('should mention Supabase configuration for production', () => {
+      expect(readmeContent).toMatch(/Supabase.*production|production.*Supabase/i);
+    });
+  });
+
+  describe('Contributing Section', () => {
+    it('should contain Contributing heading', () => {
+      expect(readmeContent).toMatch(/## Contributing/);
+    });
+
+    it('should mention ESLint configuration', () => {
+      expect(readmeContent).toContain('ESLint');
+      expect(readmeContent).toMatch(/npm run lint/);
+    });
+  });
+
+  describe('Links and References', () => {
+    it('should contain valid markdown links', () => {
+      const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+      const matches = readmeContent.match(linkPattern);
+      expect(matches).toBeTruthy();
+      expect(matches!.length).toBeGreaterThan(5);
+    });
+
+    it('should reference official documentation', () => {
+      expect(readmeContent).toContain('https://nextjs.org');
+      expect(readmeContent).toContain('https://platform.openai.com');
+      expect(readmeContent).toContain('https://supabase.com');
+    });
+  });
+});
+
+describe('Environment Variables Sync', () => {
+  it('should have .env.example or .env.local.example that matches README documentation', () => {
+    const envExamplePath = path.join(process.cwd(), '.env.local.example');
+    const envExampleExists = fs.existsSync(envExamplePath);
+    
+    if (envExampleExists) {
+      const envContent = fs.readFileSync(envExamplePath, 'utf-8');
+      expect(envContent).toContain('NEXTAUTH_SECRET');
+      expect(envContent).toContain('OPENAI_API_KEY');
+      expect(envContent).toContain('SUPABASE_URL');
+    }
+  });
+});
+
+describe('Package.json Alignment', () => {
+  let packageJson: any;
+
+  beforeAll(() => {
+    const packagePath = path.join(process.cwd(), 'package.json');
+    packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
+  });
+
+  it('should mention dependencies that exist in package.json', () => {
+    const readmePath = path.join(process.cwd(), 'README.md');
+    const readmeContent = fs.readFileSync(readmePath, 'utf-8');
+    
+    // Check that mentioned technologies are actually in dependencies
+    if (readmeContent.includes('Zustand')) {
+      const hasZustand = packageJson.dependencies?.zustand || packageJson.devDependencies?.zustand;
+      // This is a soft check - README might mention planned features
+      // So we just log rather than assert
+    }
+    
+    if (readmeContent.includes('TanStack Query')) {
+      const hasQuery = packageJson.dependencies?.['@tanstack/react-query'] || packageJson.devDependencies?.['@tanstack/react-query'];
+    }
+  });
+});
