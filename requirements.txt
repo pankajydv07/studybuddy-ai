@@ -1,0 +1,7 @@
+ google-auth-httplib2
+ google-auth-oauthlib
+ openai
+requests
+beautifulsoup4
+
+diff --git a/studybuddy/__init__.py b/studybuddy/__init__.py

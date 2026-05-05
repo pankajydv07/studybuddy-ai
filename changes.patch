@@ -1,0 +1,551 @@
+import pytest
+import requests
+from unittest.mock import Mock, patch, MagicMock
+from bs4 import BeautifulSoup
+
+from studybuddy.content_fetcher import LinkExtractor, ContentFetcher, format_for_ai
+from studybuddy.classroom import ClassroomClient
+from studybuddy.ai_bot import StudyBuddyAI
+
+
+class TestLinkExtractor:
+    """Tests for LinkExtractor class."""
+    
+    def test_extract_links_from_text(self):
+        """Test extracting URLs from text content."""
+        text = "Check out https://example.com and http://test.org for more info."
+        extractor = LinkExtractor()
+        links = extractor.extract_links(text)
+        
+        assert len(links) == 2
+        assert "https://example.com" in links
+        assert "http://test.org" in links
+    
+    def test_extract_links_removes_duplicates(self):
+        """Test that duplicate URLs are removed."""
+        text = "Visit https://example.com and https://example.com again."
+        extractor = LinkExtractor()
+        links = extractor.extract_links(text)
+        
+        assert len(links) == 1
+        assert links[0] == "https://example.com"
+    
+    def test_extract_links_empty_text(self):
+        """Test extracting from empty text."""
+        extractor = LinkExtractor()
+        links = extractor.extract_links("")
+        
+        assert links == []
+    
+    def test_extract_links_no_urls(self):
+        """Test text with no URLs."""
+        text = "This is just plain text without any links."
+        extractor = LinkExtractor()
+        links = extractor.extract_links(text)
+        
+        assert links == []
+    
+    def test_extract_from_attachments_with_link(self):
+        """Test extracting links from attachment objects."""
+        attachments = [
+            {'link': {'url': 'https://example.com/doc'}},
+            {'link': {'url': 'https://another.com/file'}}
+        ]
+        extractor = LinkExtractor()
+        links = extractor.extract_from_attachments(attachments)
+        
+        assert len(links) == 2
+        assert "https://example.com/doc" in links
+    
+    def test_extract_from_attachments_with_drivefile(self):
+        """Test extracting Google Drive links from attachments."""
+        attachments = [
+            {'driveFile': {'alternateLink': 'https://drive.google.com/file/d/123'}},
+            {'link': {'url': 'https://example.com'}}
+        ]
+        extractor = LinkExtractor()
+        links = extractor.extract_from_attachments(attachments)
+        
+        assert len(links) == 2
+        assert "https://drive.google.com/file/d/123" in links
+    
+    def test_extract_from_attachments_empty(self):
+        """Test extracting from empty attachments list."""
+        extractor = LinkExtractor()
+        links = extractor.extract_from_attachments([])
+        
+        assert links == []
+    
+    def test_extract_from_attachments_mixed_types(self):
+        """Test extracting from attachments with mixed types and missing data."""
+        attachments = [
+            {'link': {'url': 'https://example.com'}},
+            {'driveFile': {}},  # Missing alternateLink
+            {},  # Empty attachment
+            {'youtubeVideo': {'id': 'abc123'}}  # Unsupported type
+        ]
+        extractor = LinkExtractor()
+        links = extractor.extract_from_attachments(attachments)
+        
+        assert len(links) == 1
+        assert links[0] == "https://example.com"
+
+
+class TestContentFetcher:
+    """Tests for ContentFetcher class."""
+    
+    @patch('studybuddy.content_fetcher.requests.Session')
+    def test_fetch_content_success(self, mock_session_class):
+        """Test successful content fetching."""
+        # Setup mock
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        
+        mock_response = MagicMock()
+        mock_response.content = b'<html><head><title>Test Page</title></head><body><p>Hello World</p></body></html>'
+        mock_response.raise_for_status = Mock()
+        mock_session.get.return_value = mock_response
+        
+        fetcher = ContentFetcher()
+        result = fetcher.fetch_content("https://example.com")
+        
+        assert result is not None
+        assert result['url'] == "https://example.com"
+        assert result['title'] == "Test Page"
+        assert "Hello World" in result['content']
+        assert result['domain'] == "example.com"
+    
+    def test_fetch_content_google_drive(self):
+        """Test handling of Google Drive URLs."""
+        fetcher = ContentFetcher()
+        result = fetcher.fetch_content("https://drive.google.com/file/d/123/view")
+        
+        assert result is not None
+        assert result['title'] == "Google Drive File"
+        assert "drive.google.com" in result['content']
+        assert result['domain'] == "drive.google.com"
+    
+    def test_fetch_content_google_docs(self):
+        """Test handling of Google Docs URLs."""
+        fetcher = ContentFetcher()
+        result = fetcher.fetch_content("https://docs.google.com/document/d/123/edit")
+        
+        assert result is not None
+        assert result['title'] == "Google Drive File"
+    
+    @patch('studybuddy.content_fetcher.requests.Session')
+    def test_fetch_content_request_error(self, mock_session_class):
+        """Test handling of request errors."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_session.get.side_effect = requests.RequestException("Connection error")
+        
+        fetcher = ContentFetcher()
+        result = fetcher.fetch_content("https://example.com")
+        
+        assert result is None
+    
+    @patch('studybuddy.content_fetcher.requests.Session')
+    def test_fetch_content_timeout(self, mock_session_class):
+        """Test handling of timeout."""
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_session.get.side_effect = requests.Timeout("Request timed out")
+        
+        fetcher = ContentFetcher(timeout=5)
+        result = fetcher.fetch_content("https://example.com")
+        
+        assert result is None
+    
+    @patch.object(ContentFetcher, 'fetch_content')
+    def test_fetch_multiple(self, mock_fetch):
+        """Test fetching multiple URLs."""
+        mock_fetch.side_effect = [
+            {'url': 'https://example.com', 'title': 'Example', 'content': 'Content', 'domain': 'example.com'},
+            {'url': 'https://test.org', 'title': 'Test', 'content': 'Test Content', 'domain': 'test.org'},
+            None  # One failure
+        ]
+        
+        fetcher = ContentFetcher()
+        results = fetcher.fetch_multiple(['https://example.com', 'https://test.org', 'https://fail.com'])
+        
+        assert len(results) == 2
+        assert results[0]['title'] == 'Example'
+        assert results[1]['title'] == 'Test'
+    
+    def test_fetch_multiple_empty_list(self):
+        """Test fetching with empty URL list."""
+        fetcher = ContentFetcher()
+        results = fetcher.fetch_multiple([])
+        
+        assert results == []
+
+
+class TestFormatForAI:
+    """Tests for format_for_ai function."""
+    
+    def test_format_for_ai(self):
+        """Test formatting sources for AI context."""
+        sources = [
+            {'url': 'https://example.com', 'title': 'Example', 'content': 'Content here'},
+            {'url': 'https://test.org', 'title': 'Test', 'content': 'Test content'}
+        ]
+        
+        result = format_for_ai(sources)
+        
+        assert "Source 1: Example (https://example.com)" in result
+        assert "Content here" in result
+        assert "Source 2: Test (https://test.org)" in result
+        assert "---" in result
+    
+    def test_format_for_ai_empty(self):
+        """Test formatting with empty sources."""
+        result = format_for_ai([])
+        
+        assert result == ""
+    
+    def test_format_for_ai_single_source(self):
+        """Test formatting with single source."""
+        sources = [{'url': 'https://example.com', 'title': 'Example', 'content': 'Content'}]
+        
+        result = format_for_ai(sources)
+        
+        assert "Source 1:" in result
+        assert "---" not in result  # No separator for single item
+
+
+class TestClassroomClient:
+    """Tests for ClassroomClient modifications."""
+    
+    @pytest.fixture
+    def mock_credentials(self):
+        """Mock Google credentials."""
+        return Mock()
+    
+    @pytest.fixture
+    def classroom_client(self, mock_credentials):
+        """Create ClassroomClient with mocked service."""
+        with patch('studybuddy.classroom.build') as mock_build:
+            mock_service = MagicMock()
+            mock_build.return_value = mock_service
+            client = ClassroomClient(mock_credentials)
+            return client, mock_service
+    
+    def test_init_creates_link_extractor(self, mock_credentials):
+        """Test that client initializes LinkExtractor."""
+        with patch('studybuddy.classroom.build'):
+            client = ClassroomClient(mock_credentials)
+            assert hasattr(client, 'link_extractor')
+            assert isinstance(client.link_extractor, LinkExtractor)
+    
+    def test_init_creates_content_fetcher(self, mock_credentials):
+        """Test that client initializes ContentFetcher."""
+        with patch('studybuddy.classroom.build'):
+            client = ClassroomClient(mock_credentials)
+            assert hasattr(client, 'content_fetcher')
+            assert isinstance(client.content_fetcher, ContentFetcher)
+    
+    def test_extract_links_from_announcement_text_and_attachments(self, classroom_client):
+        """Test link extraction from announcement."""
+        client, _ = classroom_client
+        
+        announcement = {
+            'text': 'Check out https://example.com for more info.',
+            'materials': [
+                {'link': {'url': 'https://attachment.com/file'}}
+            ]
+        }
+        
+        links = client._extract_links_from_announcement(announcement)
+        
+        assert len(links) == 2
+        assert "https://example.com" in links
+        assert "https://attachment.com/file" in links
+    
+    def test_extract_links_from_announcement_empty(self, classroom_client):
+        """Test link extraction from empty announcement."""
+        client, _ = classroom_client
+        
+        announcement = {'text': '', 'materials': []}
+        links = client._extract_links_from_announcement(announcement)
+        
+        assert links == []
+    
+    def test_extract_links_from_coursework(self, classroom_client):
+        """Test link extraction from coursework."""
+        client, _ = classroom_client
+        
+        coursework = {
+            'description': 'Read https://example.com/article',
+            'materials': [
+                {'driveFile': {'alternateLink': 'https://drive.google.com/file/d/123'}}
+            ]
+        }
+        
+        links = client._extract_links_from_coursework(coursework)
+        
+        assert len(links) == 2
+        assert "https://example.com/article" in links
+        assert "https://drive.google.com/file/d/123" in links
+    
+    @patch.object(ClassroomClient, '_extract_links_from_announcement')
+    def test_get_announcements_adds_extracted_links(self, mock_extract, classroom_client):
+        """Test that get_announcements adds _extracted_links field."""
+        client, mock_service = classroom_client
+        
+        mock_extract.return_value = ['https://example.com']
+        
+        # Mock the API response
+        mock_courses = MagicMock()
+        mock_announcements = MagicMock()
+        mock_list = MagicMock()
+        mock_execute = MagicMock()
+        
+        mock_execute.execute.return_value = {
+            'announcements': [
+                {'id': '1', 'text': 'Hello'},
+                {'id': '2', 'text': 'World'}
+            ]
+        }
+        mock_list.list.return_value = mock_execute
+        mock_announcements.announcements.return_value = mock_list
+        mock_courses.courses.return_value = mock_announcements
+        mock_service.courses = mock_courses
+        
+        # Need to re-patch the service
+        with patch.object(client, 'courses', mock_courses):
+            announcements = client.get_announcements('course123')
+        
+        assert len(announcements) == 2
+        assert '_extracted_links' in announcements[0]
+        assert announcements[0]['_extracted_links'] == ['https://example.com']
+    
+    def test_fetch_link_contents(self, classroom_client):
+        """Test fetching link contents from course item."""
+        client, _ = classroom_client
+        
+        course_item = {
+            '_extracted_links': ['https://example.com', 'https://test.org']
+        }
+        
+        with patch.object(client.content_fetcher, 'fetch_multiple') as mock_fetch:
+            mock_fetch.return_value = [
+                {'url': 'https://example.com', 'content': 'Example content'}
+            ]
+            results = client.fetch_link_contents(course_item)
+        
+        mock_fetch.assert_called_once_with(['https://example.com', 'https://test.org'])
+        assert len(results) == 1
+    
+    def test_fetch_link_contents_no_links(self, classroom_client):
+        """Test fetching when no links present."""
+        client, _ = classroom_client
+        
+        course_item = {}
+        results = client.fetch_link_contents(course_item)
+        
+        assert results == []
+
+
+class TestStudyBuddyAI:
+    """Tests for StudyBuddyAI modifications."""
+    
+    @pytest.fixture
+    def ai_bot(self):
+        """Create StudyBuddyAI instance."""
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+            return StudyBuddyAI(api_key='test-key')
+    
+    def test_init_creates_link_context(self, ai_bot):
+        """Test that AI bot initializes link_context."""
+        assert hasattr(ai_bot, 'link_context')
+        assert ai_bot.link_context == []
+    
+    def test_add_link_context(self, ai_bot):
+        """Test adding link context."""
+        link_contents = [
+            {'url': 'https://example.com', 'content': 'Content 1'},
+            {'url': 'https://test.org', 'content': 'Content 2'}
+        ]
+        
+        ai_bot.add_link_context(link_contents)
+        
+        assert len(ai_bot.link_context) == 2
+        assert ai_bot.link_context[0]['url'] == 'https://example.com'
+    
+    def test_clear_link_context(self, ai_bot):
+        """Test clearing link context."""
+        ai_bot.link_context = [{'url': 'https://example.com'}]
+        ai_bot.clear_link_context()
+        
+        assert ai_bot.link_context == []
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_ask_with_link_context(self, mock_create, ai_bot):
+        """Test asking with link context."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'AI response'}}]
+        }
+        
+        ai_bot.link_context = [{'url': 'https://example.com', 'title': 'Example', 'content': 'Content'}]
+        
+        response = ai_bot.ask("What is this about?")
+        
+        assert response == "AI response"
+        
+        # Check that the call was made with link context
+        call_args = mock_create.call_args
+        messages = call_args[1]['messages']
+        system_msg = messages[0]['content']
+        
+        assert "Reference Materials from Links" in system_msg
+        assert "https://example.com" in system_msg
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_ask_with_course_and_link_context(self, mock_create, ai_bot):
+        """Test asking with both course and link context."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'AI response'}}]
+        }
+        
+        ai_bot.link_context = [{'url': 'https://example.com', 'title': 'Example', 'content': 'Content'}]
+        
+        response = ai_bot.ask("Question", course_context="Course info")
+        
+        call_args = mock_create.call_args
+        messages = call_args[1]['messages']
+        system_msg = messages[0]['content']
+        
+        assert "Course Context: Course info" in system_msg
+        assert "Reference Materials from Links" in system_msg
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_ask_includes_conversation_history(self, mock_create, ai_bot):
+        """Test that conversation history is included."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'AI response'}}]
+        }
+        
+        # Pre-populate history
+        ai_bot.conversation_history = [
+            {'role': 'user', 'content': 'Previous question'},
+            {'role': 'assistant', 'content': 'Previous answer'}
+        ]
+        
+        ai_bot.ask("New question")
+        
+        call_args = mock_create.call_args
+        messages = call_args[1]['messages']
+        
+        # Should have system, history (2 items), and new question
+        assert len(messages) >= 3
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_ask_updates_conversation_history(self, mock_create, ai_bot):
+        """Test that conversation history is updated after ask."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'AI answer'}}]
+        }
+        
+        ai_bot.ask("Question")
+        
+        assert len(ai_bot.conversation_history) == 2
+        assert ai_bot.conversation_history[0]['content'] == "Question"
+        assert ai_bot.conversation_history[1]['content'] == "AI answer"
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_answer_from_links(self, mock_create, ai_bot):
+        """Test answering from specific link contents."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'Based on the materials...'}}]
+        }
+        
+        link_contents = [
+            {'url': 'https://example.com', 'title': 'Doc', 'content': 'Document content'}
+        ]
+        
+        response = ai_bot.answer_from_links("What does it say?", link_contents)
+        
+        assert response == "Based on the materials..."
+        
+        call_args = mock_create.call_args
+        messages = call_args[1]['messages']
+        user_msg = messages[-1]['content']
+        
+        assert "What does it say?" in user_msg
+        assert "Document content" in user_msg
+    
+    def test_answer_from_links_empty(self, ai_bot):
+        """Test answering with no link contents."""
+        response = ai_bot.answer_from_links("Question?", [])
+        
+        assert "No link content provided" in response
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_summarize_material(self, mock_create, ai_bot):
+        """Test summarizing material."""
+        mock_create.return_value = {
+            'choices': [{'message': {'content': 'Summary of text'}}]
+        }
+        
+        response = ai_bot.summarize_material("Long text to summarize...")
+        
+        assert response == "Summary of text"
+        
+        call_args = mock_create.call_args
+        messages = call_args[1]['messages']
+        user_msg = messages[-1]['content']
+        
+        assert "summarize" in user_msg.lower()
+        assert "Long text to summarize" in user_msg
+    
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_ask_api_error(self, mock_create, ai_bot):
+        """Test handling of API errors."""
+        mock_create.side_effect = Exception("API Error")
+        
+        response = ai_bot.ask("Question")
+        
+        assert "Sorry" in response
+        assert "trouble" in response.lower()
+
+
+class TestIntegration:
+    """Integration tests for the full workflow."""
+    
+    @patch('studybuddy.content_fetcher.requests.Session')
+    @patch('studybuddy.ai_bot.openai.ChatCompletion.create')
+    def test_full_workflow(self, mock_openai, mock_session_class):
+        """Test complete workflow from link extraction to AI response."""
+        # Setup content fetcher mock
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+        mock_response = MagicMock()
+        mock_response.content = b'<html><title>Test</title><body>Content</body></html>'
+        mock_response.raise_for_status = Mock()
+        mock_session.get.return_value = mock_response
+        
+        # Setup OpenAI mock
+        mock_openai.return_value = {
+            'choices': [{'message': {'content': 'AI analyzed the content'}}]
+        }
+        
+        # 1. Extract links
+        extractor = LinkExtractor()
+        text = "Check https://example.com"
+        links = extractor.extract_links(text)
+        
+        # 2. Fetch content
+        fetcher = ContentFetcher()
+        contents = fetcher.fetch_multiple(links)
+        
+        # 3. Format for AI
+        context = format_for_ai(contents)
+        
+        # 4. Ask AI
+        ai = StudyBuddyAI(api_key='test')
+        ai.add_link_context(contents)
+        response = ai.ask("What is this?")
+        
+        assert response == "AI analyzed the content"
+        assert len(contents) > 0
