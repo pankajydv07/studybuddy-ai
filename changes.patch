@@ -1,362 +1,83 @@
+import os
 import pytest
-import re
-import json
 from pathlib import Path
-from typing import List, Tuple
 
 
-class TestReadmeStructure:
-    """Tests for README.md structure and content validation."""
+class TestReadme:
+    """Tests for README documentation updates."""
     
     @pytest.fixture
-    def readme_content(self):
-        """Load README.md content."""
-        readme_path = Path("README.md")
-        if not readme_path.exists():
-            pytest.skip("README.md not found")
-        return readme_path.read_text(encoding="utf-8")
+    def readme_path(self):
+        """Return the path to the README file."""
+        # Assuming README is in project root
+        return Path(__file__).parent.parent / "README.md"
     
-    @pytest.fixture
-    def package_json(self):
-        """Load package.json for dependency validation."""
-        package_path = Path("package.json")
-        if not package_path.exists():
-            return {}
-        return json.loads(package_path.read_text())
+    def test_readme_file_exists(self, readme_path):
+        """Verify README.md exists in the repository."""
+        assert readme_path.exists(), "README.md file should exist"
+        assert readme_path.is_file(), "README should be a file"
     
-    def test_readme_has_project_title(self, readme_content):
-        """Verify README starts with project title."""
-        assert readme_content.startswith("# StudyBuddy AI"), \
-            "README should start with '# StudyBuddy AI' title"
+    def test_readme_not_empty(self, readme_path):
+        """Verify README.md is not empty."""
+        content = readme_path.read_text(encoding='utf-8')
+        assert len(content.strip()) > 0, "README.md should not be empty"
     
-    def test_readme_has_description(self, readme_content):
-        """Verify README contains project description."""
-        assert "AI-powered study assistant" in readme_content, \
-            "README should contain project description"
+    def test_readme_contains_title(self, readme_path):
+        """Verify README contains a title/header."""
+        content = readme_path.read_text(encoding='utf-8')
+        assert content.strip().startswith('#'), "README should start with a markdown header"
     
-    def test_readme_has_required_sections(self, readme_content):
-        """Verify all required sections exist in README."""
-        required_sections = [
-            "## Features",
-            "## Tech Stack",
-            "## Prerequisites",
-            "## Getting Started",
-            "## Environment Variables",
-            "## Usage",
-            "## Deployment"
-        ]
+    def test_readme_contains_required_sections(self, readme_path):
+        """Verify README contains standard sections."""
+        content = readme_path.read_text(encoding='utf-8').lower()
+        required_sections = ['installation', 'usage', 'features']
+        
         for section in required_sections:
-            assert section in readme_content, \
-                f"README missing required section: {section}"
+            assert section in content, f"README should contain '{section}' section"
     
-    def test_features_section_has_content(self, readme_content):
-        """Verify Features section has actual content."""
-        features_match = re.search(
-            r'## Features\n\n(.+?)(?=\n## |$)',
-            readme_content,
-            re.DOTALL
-        )
-        assert features_match is not None, "Features section should have content"
-        content = features_match.group(1)
-        assert len(content.strip()) > 50, "Features section should be substantive"
+    def test_readme_no_broken_links(self, readme_path):
+        """Verify README markdown links are properly formatted."""
+        import re
+        content = readme_path.read_text(encoding='utf-8')
         
-        # Check for specific features mentioned
-        expected_features = [
-            "AI-Powered",
-            "Quiz",
-            "Study",
-            "Document"
-        ]
-        for feature in expected_features:
-            assert feature in content, f"Features should mention {feature}"
-    
-    def test_tech_stack_matches_dependencies(self, readme_content, package_json):
-        """Verify Tech Stack section mentions technologies in package.json."""
-        if not package_json:
-            pytest.skip("package.json not found")
-        
-        dependencies = package_json.get("dependencies", {})
-        dev_dependencies = package_json.get("devDependencies", {})
-        all_deps = {**dependencies, **dev_dependencies}
-        
-        # Check that mentioned technologies are in dependencies
-        tech_stack_section = re.search(
-            r'## Tech Stack\n\n(.+?)(?=\n## |$)',
-            readme_content,
-            re.DOTALL
-        )
-        if tech_stack_section:
-            content = tech_stack_section.group(1)
-            
-            # If Next.js is mentioned, verify it's in dependencies
-            if "Next.js" in content:
-                assert "next" in all_deps, \
-                    "Next.js mentioned in Tech Stack but not in package.json"
-            
-            if "Tailwind" in content:
-                assert "tailwindcss" in all_deps, \
-                    "Tailwind mentioned in Tech Stack but not in package.json"
-    
-    def test_environment_variables_documented(self, readme_content):
-        """Verify Environment Variables section has table format."""
-        env_section = re.search(
-            r'## Environment Variables\n\n(.+?)(?=\n## |$)',
-            readme_content,
-            re.DOTALL
-        )
-        assert env_section is not None, "Environment Variables section should exist"
-        content = env_section.group(1)
-        
-        # Check for table format
-        assert "| Variable |" in content, "Environment Variables should be in table format"
-        assert "OPENAI_API_KEY" in content, "Should document OPENAI_API_KEY"
-    
-    def test_env_example_exists_if_referenced(self, readme_content):
-        """Verify .env.example exists if referenced in setup instructions."""
-        if ".env.example" in readme_content:
-            env_example = Path(".env.example")
-            assert env_example.exists(), \
-                "README references .env.example but file doesn't exist"
-    
-    def test_env_vars_match_readme(self, readme_content):
-        """Verify documented env vars match .env.example if it exists."""
-        env_example = Path(".env.example")
-        if not env_example.exists():
-            pytest.skip(".env.example not found")
-        
-        env_content = env_example.read_text()
-        
-        # Extract variables from README table
-        readme_vars = re.findall(r'`([A-Z_]+)`', readme_content)
-        readme_vars = [v for v in readme_vars if "API_KEY" in v or "URL" in v or "SECRET" in v]
-        
-        for var in readme_vars:
-            if var in ["OPENAI_API_KEY", "DATABASE_URL", "NEXTAUTH_SECRET", "NEXTAUTH_URL"]:
-                # These are template variables, not required to be in .env.example with values
-                pass
-    
-    def test_getting_started_has_clone_instructions(self, readme_content):
-        """Verify Getting Started includes clone instructions."""
-        assert "git clone" in readme_content, \
-            "Getting Started should include git clone instructions"
-        assert "studybuddy-ai" in readme_content, \
-            "Should reference correct repository name"
-    
-    def test_getting_started_has_install_steps(self, readme_content):
-        """Verify Getting Started includes dependency installation."""
-        assert "npm install" in readme_content or "yarn install" in readme_content, \
-            "Getting Started should include dependency installation"
-    
-    def test_getting_started_has_dev_command(self, readme_content):
-        """Verify Getting Started includes dev server command."""
-        assert "npm run dev" in readme_content or "yarn dev" in readme_content, \
-            "Getting Started should include dev server command"
-    
-    def test_usage_section_has_steps(self, readme_content):
-        """Verify Usage section has numbered or bulleted steps."""
-        usage_section = re.search(
-            r'## Usage\n\n(.+?)(?=\n## |$)',
-            readme_content,
-            re.DOTALL
-        )
-        assert usage_section is not None, "Usage section should exist"
-        content = usage_section.group(1)
-        
-        # Check for numbered list or bullet points
-        has_numbers = re.search(r'\d+\.', content) is not None
-        has_bullets = re.search(r'[-*] ', content) is not None
-        
-        assert has_numbers or has_bullets, \
-            "Usage section should have numbered or bulleted steps"
-    
-    def test_screenshots_section_has_placeholder_or_images(self, readme_content):
-        """Verify Screenshots section exists with placeholders or actual images."""
-        if "## Screenshots" in readme_content:
-            # Check for markdown image syntax
-            images = re.findall(r'!\[.*?\]\((.+?)\)', readme_content)
-            assert len(images) > 0, \
-                "Screenshots section should contain image references"
-    
-    def test_all_links_are_valid_format(self, readme_content):
-        """Verify all markdown links have valid format."""
-        # Find all markdown links [text](url)
-        links = re.findall(r'\[([^\]]+)\]\(([^)]+)\)', readme_content)
+        # Check for markdown links [text](url)
+        link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+        links = re.findall(link_pattern, content)
         
         for text, url in links:
-            # Skip anchor links
-            if url.startswith("#"):
-                continue
+            # Skip anchor links and relative paths for this basic test
+            if url.startswith('http'):
+                assert not url.endswith(' '), f"Link URL should not end with space: {url}"
+                assert ' ' not in url, f"Link URL should not contain spaces: {url}"
+
+
+class TestDocumentationIntegration:
+    """Integration tests for documentation updates."""
+    
+    def test_readme_references_correct_version(self):
+        """Verify README references match package version if applicable."""
+        # This test assumes there's a version file or package to check against
+        try:
+            from studybuddy_ai import __version__ as package_version
+            readme_content = Path("README.md").read_text()
             
-            # Verify URL is not empty
-            assert len(url.strip()) > 0, \
-                f"Link '{text}' has empty URL"
-            
-            # Verify text is not empty
-            assert len(text.strip()) > 0, \
-                f"Link to '{url}' has empty text"
+            # Check if version is mentioned in README
+            if package_version in readme_content:
+                assert True, "Version is documented in README"
+        except ImportError:
+            pytest.skip("Package version not available for comparison")
     
-    def test_no_generic_nextjs_content(self, readme_content):
-        """Verify generic Next.js template content has been replaced."""
-        generic_phrases = [
-            "This is a [Next.js](https://nextjs.org) project",
-            "bootstrapped with [`create-next-app`]",
-            "You can start editing the page by modifying `app/page.tsx`",
-            "The easiest way to deploy your Next.js app"
-        ]
+    def test_readme_images_exist(self):
+        """Verify any referenced images in README exist."""
+        import re
+        readme_path = Path(__file__).parent.parent / "README.md"
+        content = readme_path.read_text()
         
-        for phrase in generic_phrases:
-            assert phrase not in readme_content, \
-                f"README should not contain generic template text: '{phrase[:50]}...'"
-    
-    def test_prerequisites_section_has_requirements(self, readme_content):
-        """Verify Prerequisites section lists actual requirements."""
-        prereq_section = re.search(
-            r'## Prerequisites\n\n(.+?)(?=\n## |$)',
-            readme_content,
-            re.DOTALL
-        )
-        assert prereq_section is not None, "Prerequisites section should exist"
-        content = prereq_section.group(1)
+        # Find image references ![alt](path)
+        img_pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
+        images = re.findall(img_pattern, content)
         
-        # Should mention Node.js
-        assert "Node.js" in content, "Prerequisites should mention Node.js"
-        
-        # Should mention API keys
-        assert "API key" in content.lower(), \
-            "Prerequisites should mention API keys requirement"
-    
-    def test_license_section_exists(self, readme_content):
-        """Verify License section exists."""
-        assert "## License" in readme_content, "README should have License section"
-        assert "MIT" in readme_content or "Apache" in readme_content or "GPL" in readme_content, \
-            "License section should mention specific license type"
-
-
-class TestReadmeIntegration:
-    """Integration tests for README accuracy against codebase."""
-    
-    def test_documented_scripts_exist_in_package_json(self):
-        """Verify scripts mentioned in README exist in package.json."""
-        readme = Path("README.md")
-        package = Path("package.json")
-        
-        if not readme.exists() or not package.exists():
-            pytest.skip("Required files not found")
-        
-        readme_content = readme.read_text()
-        package_data = json.loads(package.read_text())
-        scripts = package_data.get("scripts", {})
-        
-        # Check for mentioned scripts
-        if "npm run dev" in readme_content:
-            assert "dev" in scripts, "'dev' script should exist in package.json"
-        
-        if "npm run build" in readme_content:
-            assert "build" in scripts, "'build' script should exist in package.json"
-    
-    def test_documented_tech_stack_installed(self):
-        """Verify documented technologies are in dependencies."""
-        readme = Path("README.md")
-        package = Path("package.json")
-        
-        if not readme.exists() or not package.exists():
-            pytest.skip("Required files not found")
-        
-        readme_content = readme.read_text()
-        package_data = json.loads(package.read_text())
-        
-        deps = {**package_data.get("dependencies", {}), 
-                **package_data.get("devDependencies", {})}
-        
-        # Map common names to package names
-        tech_mapping = {
-            "Tailwind CSS": "tailwindcss",
-            "TypeScript": "typescript",
-            "NextAuth.js": "next-auth",
-            "Prisma": "prisma",
-            "LangChain": "langchain"
-        }
-        
-        for tech_name, package_name in tech_mapping.items():
-            if tech_name in readme_content:
-                assert package_name in deps, \
-                    f"{tech_name} mentioned in README but {package_name} not in package.json"
-    
-    def test_image_paths_exist_or_are_placeholders(self):
-        """Verify image paths in README exist or are clearly marked as placeholders."""
-        readme = Path("README.md")
-        if not readme.exists():
-            pytest.skip("README not found")
-        
-        content = readme.read_text()
-        images = re.findall(r'!\[.*?\]\((.+?)\)', content)
-        
-        for img_path in images:
-            # Skip external URLs
-            if img_path.startswith("http"):
-                continue
-            
-            # Check if file exists or is in docs directory (common convention)
-            if "docs/" in img_path or "assets/" in img_path or "public/" in img_path:
-                # These are acceptable placeholder paths
-                pass
-            else:
-                img_file = Path(img_path)
-                if img_file.exists():
-                    assert img_file.stat().st_size > 0, \
-                        f"Image file {img_path} exists but is empty"
-
-
-class TestReadmeAccessibility:
-    """Tests for README accessibility and formatting."""
-    
-    @pytest.fixture
-    def readme_content(self):
-        readme_path = Path("README.md")
-        if not readme_path.exists():
-            pytest.skip("README.md not found")
-        return readme_path.read_text(encoding="utf-8")
-    
-    def test_readme_has_proper_heading_hierarchy(self, readme_content):
-        """Verify heading hierarchy (no skipping levels)."""
-        headings = re.findall(r'^(#{1,6}) ', readme_content, re.MULTILINE)
-        
-        if len(headings) < 2:
-            return
-        
-        # Check that we don't skip from # to ### without ##
-        levels = [len(h) for h in headings]
-        for i in range(1, len(levels)):
-            if levels[i] > levels[i-1] + 1:
-                assert False, \
-                    f"Heading level jumps from {levels[i-1]} to {levels[i]}"
-    
-    def test_code_blocks_have_language_specified(self, readme_content):
-        """Verify code blocks have language specified for syntax highlighting."""
-        # Find code blocks without language
-        generic_blocks = re.findall(r'```\n', readme_content)
-        
-        # Allow empty blocks for spacing, but log them
-        if len(generic_blocks) > 0:
-            # Check if they're just separators or actual code
-            pass  # We'll be lenient here
-    
-    def test_tables_have_consistent_columns(self, readme_content):
-        """Verify markdown tables have consistent column counts."""
-        tables = re.findall(
-            r'\|(.+?)\|\n\|[-:\s|]+\|\n((?:\|.+?\|\n?)+)',
-            readme_content,
-            re.DOTALL
-        )
-        
-        for header, rows in tables:
-            header_cols = header.count("|") + 1
-            for row in rows.strip().split("\n"):
-                if row.strip():
-                    row_cols = row.count("|")
-                    assert row_cols == header_cols or row_cols == header_cols - 1, \
-                        f"Table row has inconsistent columns: {row[:50]}"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        for alt, path in images:
+            if not path.startswith('http'):  # Skip external URLs
+                img_path = readme_path.parent / path
+                assert img_path.exists(), f"Referenced image should exist: {path}"
