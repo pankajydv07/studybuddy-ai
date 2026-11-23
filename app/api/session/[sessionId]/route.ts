@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 
-// GET /api/session/[sessionId] — get single session
+// GET /api/session/[sessionId] — get single session with its chat history
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ sessionId: string }> }
@@ -25,5 +25,21 @@ export async function GET(
     return NextResponse.json({ error: 'Session not found' }, { status: 404 })
   }
 
-  return NextResponse.json({ session: data })
+  // Chat history was previously written to `chat_messages` (see
+  // app/api/chat/route.ts) but never read back here, so reopening a
+  // session always rendered as an empty / brand-new chat. Return the
+  // stored messages in chronological order so the study page can
+  // restore them.
+  const { data: messages, error: messagesError } = await supabaseAdmin
+    .from('chat_messages')
+    .select('id, role, content, sources, created_at')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true })
+    .limit(500)
+
+  if (messagesError) {
+    return NextResponse.json({ error: messagesError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ session: data, messages: messages ?? [] })
 }

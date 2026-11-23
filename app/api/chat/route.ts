@@ -99,11 +99,18 @@ export async function POST(req: Request) {
             }
           }
 
-          // Save complete assistant message to DB
+          // Save complete assistant message to DB, including its
+          // sources. Without this, reopened sessions could never show
+          // the source chips for past answers (the live response only
+          // carried them in the X-Sources header).
           await supabaseAdmin.from('chat_messages').insert({
             session_id: sessionId,
             role: 'assistant',
             content: fullResponse,
+            sources: chunks.map((c) => ({
+              fileName: c.fileName,
+              chunkIndex: c.chunkIndex,
+            })),
           })
 
           // Update session last_active_at
