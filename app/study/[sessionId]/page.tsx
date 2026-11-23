@@ -32,6 +32,15 @@ interface SessionRecord {
   created_at: string
 }
 
+// Raw chat_messages row returned by GET /api/session/[sessionId]
+interface ChatMessageRecord {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: { fileName: string; chunkIndex: number }[] | null
+  created_at: string
+}
+
 export default function StudyPage() {
   const { data: authSession, status } = useSession()
   const params = useParams()
@@ -40,6 +49,7 @@ export default function StudyPage() {
 
   const [sessionData, setSessionData] = useState<SessionRecord | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [showQuiz, setShowQuiz] = useState(false)
@@ -65,12 +75,29 @@ export default function StudyPage() {
   async function loadSession() {
     try {
       const res = await fetch(`/api/session/${sessionId}`)
-      if (res.ok) {
-        const { session: s } = await res.json()
-        if (s) setSessionData(s)
+      if (!res.ok) {
+        toast.error('Failed to load this session')
+        return
+      }
+      const { session: s, messages: history } = await res.json()
+      if (s) setSessionData(s)
+      // Restore the stored chat history. Previously this page only
+      // fetched the session metadata and always started with an empty
+      // message list, so every past session looked like a new one.
+      if (Array.isArray(history)) {
+        setMessages(
+          (history as ChatMessageRecord[]).map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            sources: Array.isArray(m.sources) ? m.sources : [],
+          }))
+        )
       }
     } catch {
-      // ignore - session data will be null
+      toast.error('Failed to load this session')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -198,8 +225,17 @@ export default function StudyPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+          {/* Loading history — don't flash the "new session" welcome
+              screen while the stored messages are still being fetched */}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading your past session...
+            </div>
+          )}
+
           {/* Welcome */}
-          {messages.length === 0 && (
+          {!loading && messages.length === 0 && (
             <div className="text-center py-16 animate-fade-in-up">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <Brain className="w-8 h-8 text-primary" />
