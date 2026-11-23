@@ -22,7 +22,7 @@ export interface Material {
   id: string
   courseId: string
   fileName: string
-  fileType: 'pdf' | 'docx' | 'pptx' | 'link' | 'unknown'
+  fileType: 'pdf' | 'docx' | 'doc' | 'pptx' | 'ppt' | 'md' | 'txt' | 'csv' | 'link' | 'unknown'
   driveFileId?: string
   classroomMaterialId?: string
   extractedTextStatus: 'pending' | 'done' | 'error'

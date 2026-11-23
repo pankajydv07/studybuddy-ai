@@ -151,14 +151,23 @@ export function inferFileType(fileName: string): Material['fileType'] {
   const ext = lower.split('.').pop()
 
   if (ext === 'pdf') return 'pdf'
-  if (ext === 'docx' || ext === 'doc') return 'docx'
-  if (ext === 'pptx' || ext === 'ppt') return 'pptx'
+  if (ext === 'docx') return 'docx'
+  if (ext === 'doc') return 'doc'
+  if (ext === 'pptx') return 'pptx'
+  if (ext === 'ppt') return 'ppt'
+  if (ext === 'md' || ext === 'markdown') return 'md'
+  if (ext === 'txt') return 'txt'
+  if (ext === 'csv') return 'csv'
 
   // Google Workspace files have no extension — treat by name patterns
-  // They'll be exported as PDF during ingest
+  // They'll be exported as PDF during ingest (the parser falls back
+  // to PDF for 'pptx'/'docx' labels, so cached rows still work)
   if (lower.includes('slide') || lower.includes('presentation')) return 'pptx'
   if (lower.includes('sheet') || lower.includes('spreadsheet')) return 'pdf'
 
-  // Anything else from Google Drive — treat as docx (exported as PDF in ingest)
-  return 'docx'
+  // Anything else — 'unknown' makes the parser try PDF first, which
+  // is what Drive exports Google-native files as. Previously this
+  // returned 'docx', so .md/.txt files and extensionless files were
+  // fed to mammoth and always failed.
+  return 'unknown'
 }
