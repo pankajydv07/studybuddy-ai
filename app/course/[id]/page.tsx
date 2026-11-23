@@ -24,7 +24,12 @@ interface MaterialRecord {
 const FILE_ICONS: Record<string, React.ElementType> = {
   pdf: FileText,
   docx: File,
+  doc: File,
   pptx: Presentation,
+  ppt: Presentation,
+  md: FileText,
+  txt: FileText,
+  csv: FileText,
   unknown: File,
 }
 
@@ -204,7 +209,7 @@ export default function CoursePage() {
               <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground">No supported files found in this course.</p>
               <p className="text-sm text-muted-foreground/70 mt-1">
-                We support PDF, DOCX, PPTX and Google Docs/Slides.
+                We support PDF, DOCX, DOC, PPTX, Markdown, TXT, CSV and Google Docs/Slides.
               </p>
             </div>
           ) : (
